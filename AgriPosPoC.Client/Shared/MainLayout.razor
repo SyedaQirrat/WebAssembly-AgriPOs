@@ -1,39 +1,51 @@
 ﻿@inherits LayoutComponentBase
-@implements IDisposable
-@inject SyncService Syncer
-@inject ILogger<AgriPosPoC.Client.Shared.MainLayout> Logger
-<div class="page">
-    <div class="sidebar">
+@inject SyncService SyncService
+@inject ISnackbar Snackbar
+
+<MudThemeProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
+        <MudText Typo="Typo.h5" Class="ml-3">AgriPOS</MudText>
+        <MudSpacer />
+        <MudTooltip Text="@SyncService.SyncStatus">
+            <MudChip T="object" Icon="@SyncService.SyncIcon" Color="@SyncService.SyncColor" Variant="Variant.Outlined">
+                @SyncService.SyncStatus
+            </MudChip>
+        </MudTooltip>
+
+        <MudIconButton Icon="@Icons.Material.Filled.Refresh" Color="Color.Inherit" OnClick="TriggerSync" />
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
         <NavMenu />
-    </div>
+    </MudDrawer>
 
-    <main>
-        
-
-        <article class="content px-4">
-            @Body
-        </article>
-    </main>
-</div>
+    <MudMainContent Class="pa-4">
+        @Body
+    </MudMainContent>
+</MudLayout>
 
 @code {
-    private System.Threading.Timer? _timer;
+    private bool _drawerOpen = true;
 
     protected override void OnInitialized()
     {
-        // Start a timer that ticks every 30 seconds
-        _timer = new Timer(_ =>
-             {
-                 // This runs the async method without awaiting it
-                 _ = Syncer.TrySyncInvoicesAsync();
-             },
-             null,
-             TimeSpan.FromSeconds(10),  // Wait 10s before first run
-             TimeSpan.FromSeconds(30)); // Run every 30s
+        // Re-render this layout whenever the sync status changes
+        SyncService.SyncStatusChanged += (s, e) => StateHasChanged();
     }
 
-    public void Dispose()
+    private void DrawerToggle()
     {
-        _timer?.Dispose();
+        _drawerOpen = !_drawerOpen;
+    }
+
+    private async Task TriggerSync()
+    {
+        Snackbar.Add("Attempting manual sync...", Severity.Info);
+        await SyncService.TrySyncAllAsync();
     }
 }

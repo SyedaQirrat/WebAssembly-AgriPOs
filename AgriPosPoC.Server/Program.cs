@@ -1,33 +1,32 @@
-// AgriPosPoC.Server/Program.cs
-
 using AgriPosPoC.Core.Data;
+using AgriPosPoC.Server.Hubs;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // --- 1. Add Services ---
 
-// Add DbContext for ONLINE (Azure SQL)
+builder.Services.AddSignalR();
 var connectionString = builder.Configuration.GetConnectionString("OnlineConnection");
 builder.Services.AddDbContext<OnlineDbContext>(options =>
     options.UseSqlServer(connectionString, b =>
     {
-        b.MigrationsAssembly("AgriPosPoC.Server"); // <-- ADD THIS
+        b.MigrationsAssembly("AgriPosPoC.Server");
     }));
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// **IMPORTANT: Add CORS Policy**
-// This allows your Client app to call your Server app
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowClient", policy =>
     {
-        policy.WithOrigins("https://localhost:7095") // <-- Change to Client's URL
+        // Use the Client's URL from its launchSettings.json
+        policy.WithOrigins("https://localhost:7102") // <-- This must match Client's URL
               .AllowAnyHeader()
-              .AllowAnyMethod();
+              .AllowAnyMethod()
+              .AllowCredentials();
     });
 });
 
@@ -38,12 +37,23 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+    // This will now work because of the new pckage
+    app.UseWebAssemblyDebugging();
 }
 
 app.UseHttpsRedirection();
+app.UseCors("AllowClient");
 
-app.UseCors("AllowClient"); // **IMPORTANT: Use the CORS policy**
+app.UseBlazorFrameworkFiles();
+app.UseStaticFiles();
+
+app.UseRouting();
 
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<SyncHub>("/synchub");
+
+// This serves the Blazor app as the default
+app.MapFallbackToFile("index.html");
+
 app.Run();

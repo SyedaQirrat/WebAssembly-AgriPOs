@@ -1,32 +1,29 @@
-using AgriPosPoC.Client;
-using AgriPosPoC.Core.Data;
-using Microsoft.AspNetCore.Components.Web;
+// /Program.cs
+
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+using MudBlazor.Services;
 using Microsoft.EntityFrameworkCore;
-using Blazor.IndexedDB;
-using TG.Blazor.IndexedDB;
+using AgriPosPoC.Core.Data;
+using AgriPosPoC.Client;
+using MudBlazor; // <-- ADD THIS LINE
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
-builder.RootComponents.Add<App>("#app");
-builder.RootComponents.Add<HeadOutlet>("head::after");
 
-// Set the API's base address
-builder.Services.AddScoped(sp => new HttpClient
+// 1. Add MudBlazor services
+builder.Services.AddMudServices(config =>
 {
-    BaseAddress = new Uri("https://localhost:7102")
+    config.SnackbarConfiguration.PositionClass = Defaults.Classes.Position.BottomRight; // <-- This will now work
+    config.SnackbarConfiguration.PreventDuplicates = false;
 });
 
-//  Register IndexedDB BEFORE building the app
+// 2. Configure HttpClient to talk to the Server API
+builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri("https://localhost:7123") }); // <-- IMPORTANT: Use your Server's URL
 
-builder.Services.AddIndexedDB(dbStore =>
-{
-    dbStore.DbName = "AgriPosDB";
-    dbStore.Version = 1;
-    // Define stores and indexes here
-});
+// 3. Add Offline DbContext for SQLite
+builder.Services.AddDbContextFactory<OfflineDbContext>(options =>
+    options.UseSqlite("Data Source=agripos.db"));
 
-// Add your sync service
-builder.Services.AddScoped<SyncService>();
+// 4. Add the SyncService as a singleton
+builder.Services.AddSingleton<SyncService>();
 
-//  Now build and run the app
 await builder.Build().RunAsync();

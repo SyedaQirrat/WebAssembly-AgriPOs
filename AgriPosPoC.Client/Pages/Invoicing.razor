@@ -1,54 +1,77 @@
 ﻿@page "/invoicing"
-@inject OfflineDbContext _offlineDb
+@inject IDbContextFactory<OfflineDbContext> DbFactory
 @inject ILogger<Invoicing> _logger
+@inject ISnackbar Snackbar
+@inject SyncService SyncService
 
-<h3>Offline Invoicing</h3>
-<p>Create invoices here. They will be saved to the local SQLite DB.</p>
+<MudText Typo="Typo.h4" GutterBottom="true">Offline Invoicing</MudText>
+<MudText Class="mb-4">Create invoices here. They will be saved to the local SQLite DB and sync automatically.</MudText>
 
-<div style="margin-bottom: 20px;">
-    <h4>New Invoice</h4>
-    <input @bind="newInvoice.InvoiceNumber" placeholder="Inv Number" />
-    <input type="number" @bind="newInvoice.Amount" placeholder="Amount" />
-    <button @onclick="AddInvoice">Add and Save Offline</button>
-</div>
+<MudPaper Class="pa-4 mb-4">
+    <MudForm @ref="form">
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="5">
+                <MudTextField @bind-Value="newInvoice.InvoiceNumber" Label="Inv Number" Required="true" />
+            </MudItem>
+            <MudItem xs="12" sm="5">
+                <MudNumericField @bind-Value="newInvoice.Amount" Label="Amount" Required="true" Adornment="Adornment.Start" AdornmentText="$" />
+            </MudItem>
+            <MudItem xs="12" sm="2" Class="d-flex align-end">
+                <MudButton OnClick="AddInvoice" Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" StartIcon="@Icons.Material.Filled.Add">Add</MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudForm>
+</MudPaper>
 
-<h4>Local Invoices</h4>
-<button @onclick="LoadLocalInvoices">Refresh List</button>
-@if (localInvoices == null)
-{
-    <p><em>Loading...</em></p>
-}
-else
-{
-    <table style="width:100%">
-        <thead> <tr> <th>Inv Number</th> <th>Amount</th> <th>Date</th> <th>Synced?</th> </tr> </thead>
-        <tbody>
-            @foreach (var inv in localInvoices.OrderByDescending(i => i.InvoiceDate))
-            {
-                <tr>
-                    <td>@inv.InvoiceNumber</td>
-                    <td>@inv.Amount</td>
-                    <td>@inv.InvoiceDate.ToShortTimeString()</td>
-                    <td><span style="color:@(inv.IsSynced ? "green" : "red")">@(inv.IsSynced ? "Yes" : "No")</span></td>
-                </tr>
-            }
-        </tbody>
-    </table>
-}
+<MudDataGrid @ref="dataGrid" Items="@localInvoices" Dense="true" Striped="true" Bordered="true" ReadOnly="true">
+    <Columns>
+        <PropertyColumn Property="x => x.InvoiceNumber" Title="Inv Number" />
+        <PropertyColumn Property="x => x.Amount" Title="Amount" Format="C" />
+        <PropertyColumn Property="x => x.InvoiceDate" Title="Date (UTC)" Format="g" />
+        <TemplateColumn Title="Synced?" Sortable="false" Filterable="false">
+            <CellTemplate>
+                @if (context.Item.IsSynced)
+                {
+                    <MudChip T="object" Icon="@Icons.Material.Filled.CloudDone" Color="Color.Success">Synced</MudChip>
+                }
+                else
+                {
+                    <MudChip T="object" Icon="@Icons.Material.Filled.CloudUpload" Color="Color.Warning">Pending</MudChip>
+                }
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <PagerContent>
+        <MudDataGridPager />
+    </PagerContent>
+</MudDataGrid>
 
 @code {
-    private List<AgriPosPoC.Core.Models.Invoice> localInvoices = new();
-    private AgriPosPoC.Core.Models.Invoice newInvoice = new();
+    private MudForm form;
+    private MudDataGrid<Invoice> dataGrid;
+    private List<Invoice> localInvoices = new();
+    private Invoice newInvoice = new();
 
     protected override async Task OnInitializedAsync()
     {
-        await _offlineDb.Database.EnsureCreatedAsync(); // Creates the .db file
+        await using var db = await DbFactory.CreateDbContextAsync();
+        await db.Database.EnsureCreatedAsync(); // Creates the .db file
         await LoadLocalInvoices();
+
+        // Refresh the grid if the sync service reports a change
+        SyncService.SyncStatusChanged += async (s, e) => await InvokeAsync(RefreshData);
     }
 
     private async Task LoadLocalInvoices()
     {
-        localInvoices = await _offlineDb.Invoices.ToListAsync();
+        await using var db = await DbFactory.CreateDbContextAsync();
+        localInvoices = await db.Invoices.OrderByDescending(i => i.InvoiceDate).ToListAsync();
+    }
+
+    private async Task RefreshData()
+    {
+        await LoadLocalInvoices();
+        await dataGrid.ReloadServerData(); // Refreshes the MudDataGrid
         StateHasChanged();
     }
 
@@ -56,7 +79,8 @@ else
     {
         try
         {
-            var invoice = new AgriPosPoC.Core.Models.Invoice
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var invoice = new Invoice
             {
                 Id = Guid.NewGuid(),
                 InvoiceNumber = newInvoice.InvoiceNumber,
@@ -65,16 +89,22 @@ else
                 IsSynced = false
             };
 
-            await _offlineDb.Invoices.AddAsync(invoice);
-            await _offlineDb.SaveChangesAsync();
-            _logger.LogInformation("Invoice saved to local SQLite DB.");
+            await db.Invoices.AddAsync(invoice);
+            await db.SaveChangesAsync();
+
+            Snackbar.Add("Invoice saved to local SQLite DB.", Severity.Success);
 
             newInvoice = new();
-            await LoadLocalInvoices();
+            await RefreshData();
+            StateHasChanged();
+
+            // Trigger a sync attempt immediately
+            _ = SyncService.TrySyncInvoicesAsync();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error saving to local DB.");
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
         }
     }
 }

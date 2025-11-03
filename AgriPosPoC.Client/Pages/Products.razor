@@ -1,0 +1,51 @@
+﻿@page "/products"
+@inject IDbContextFactory<OfflineDbContext> DbFactory
+@inject SyncService SyncService
+@inject ILogger<Products> _logger
+
+<MudText Typo="Typo.h4" GutterBottom="true">Product List</MudText>
+<MudText Class="mb-4">This data is synced from the server (Head Office) to the client's local DB.</MudText>
+
+<MudButton OnClick="RefreshData" Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Refresh" Class="mb-4">Refresh List</MudButton>
+
+<MudDataGrid @ref="dataGrid" Items="@localProducts" Dense="true" Striped="true" Bordered="true" ReadOnly="true">
+    <Columns>
+        <PropertyColumn Property="x => x.Name" Title="Product Name" />
+        <PropertyColumn Property="x => x.Price" Title="Price" Format="C" />
+        <PropertyColumn Property="x => x.Id" Title="Product ID" />
+    </Columns>
+    <PagerContent>
+        <MudDataGridPager />
+    </PagerContent>
+</MudDataGrid>
+
+@code {
+    private MudDataGrid<Product> dataGrid;
+    private List<Product> localProducts = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLocalProducts();
+        SyncService.SyncStatusChanged += async (s, e) => await InvokeAsync(RefreshData);
+    }
+
+    private async Task LoadLocalProducts()
+    {
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            localProducts = await db.Products.OrderBy(p => p.Name).ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading local products.");
+        }
+    }
+
+    private async Task RefreshData()
+    {
+        await LoadLocalProducts();
+        await dataGrid.ReloadServerData();
+        StateHasChanged();
+    }
+}
