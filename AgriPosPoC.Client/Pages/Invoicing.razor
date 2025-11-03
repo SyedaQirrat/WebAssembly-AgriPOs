@@ -1,0 +1,80 @@
+﻿@page "/invoicing"
+@inject OfflineDbContext _offlineDb
+@inject ILogger<Invoicing> _logger
+
+<h3>Offline Invoicing</h3>
+<p>Create invoices here. They will be saved to the local SQLite DB.</p>
+
+<div style="margin-bottom: 20px;">
+    <h4>New Invoice</h4>
+    <input @bind="newInvoice.InvoiceNumber" placeholder="Inv Number" />
+    <input type="number" @bind="newInvoice.Amount" placeholder="Amount" />
+    <button @onclick="AddInvoice">Add and Save Offline</button>
+</div>
+
+<h4>Local Invoices</h4>
+<button @onclick="LoadLocalInvoices">Refresh List</button>
+@if (localInvoices == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table style="width:100%">
+        <thead> <tr> <th>Inv Number</th> <th>Amount</th> <th>Date</th> <th>Synced?</th> </tr> </thead>
+        <tbody>
+            @foreach (var inv in localInvoices.OrderByDescending(i => i.InvoiceDate))
+            {
+                <tr>
+                    <td>@inv.InvoiceNumber</td>
+                    <td>@inv.Amount</td>
+                    <td>@inv.InvoiceDate.ToShortTimeString()</td>
+                    <td><span style="color:@(inv.IsSynced ? "green" : "red")">@(inv.IsSynced ? "Yes" : "No")</span></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<AgriPosPoC.Core.Models.Invoice> localInvoices = new();
+    private AgriPosPoC.Core.Models.Invoice newInvoice = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await _offlineDb.Database.EnsureCreatedAsync(); // Creates the .db file
+        await LoadLocalInvoices();
+    }
+
+    private async Task LoadLocalInvoices()
+    {
+        localInvoices = await _offlineDb.Invoices.ToListAsync();
+        StateHasChanged();
+    }
+
+    private async Task AddInvoice()
+    {
+        try
+        {
+            var invoice = new AgriPosPoC.Core.Models.Invoice
+            {
+                Id = Guid.NewGuid(),
+                InvoiceNumber = newInvoice.InvoiceNumber,
+                Amount = newInvoice.Amount,
+                InvoiceDate = DateTime.UtcNow,
+                IsSynced = false
+            };
+
+            await _offlineDb.Invoices.AddAsync(invoice);
+            await _offlineDb.SaveChangesAsync();
+            _logger.LogInformation("Invoice saved to local SQLite DB.");
+
+            newInvoice = new();
+            await LoadLocalInvoices();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving to local DB.");
+        }
+    }
+}

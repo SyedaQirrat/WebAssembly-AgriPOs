@@ -1,0 +1,6 @@
+@AgriPosPoC.Server_HostAddress = http://localhost:5210
+
+GET {{AgriPosPoC.Server_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
