@@ -55,7 +55,7 @@
     protected override async Task OnInitializedAsync()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
-        await db.Database.EnsureCreatedAsync(); // Creates the .db file
+        //await db.Database.EnsureCreatedAsync(); // Creates the .db file
         await LoadLocalInvoices();
 
         // Refresh the grid if the sync service reports a change
