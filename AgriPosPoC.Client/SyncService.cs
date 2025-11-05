@@ -11,10 +11,11 @@ namespace AgriPosPoC.Client
     public class SyncService : IAsyncDisposable
     {
         private readonly IDbContextFactory<OfflineDbContext> _offlineDbFactory;
-        private readonly IHttpClientFactory _httpClientFactory; 
+        private readonly IHttpClientFactory _httpClientFactory;
         private readonly ILogger<SyncService> _logger;
         private HubConnection? _hubConnection;
         private Timer? _syncTimer;
+        private bool _isInitialized = false; // <-- ADDED THIS FLAG
 
         public string SyncStatus { get; private set; } = "Offline";
         public Color SyncColor { get; private set; } = Color.Error;
@@ -22,18 +23,22 @@ namespace AgriPosPoC.Client
         public event EventHandler? SyncStatusChanged;
 
         public SyncService(IDbContextFactory<OfflineDbContext> offlineDbFactory,
-                           IHttpClientFactory httpClientFactory, 
+                           IHttpClientFactory httpClientFactory,
                            ILogger<SyncService> logger,
                            NavigationManager nav)
         {
             _offlineDbFactory = offlineDbFactory;
-            _httpClientFactory = httpClientFactory; 
+            _httpClientFactory = httpClientFactory;
             _logger = logger;
-            _syncTimer = new Timer(async _ => await TrySyncAllAsync(), null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30));
+
+            // UPDATED TIMER: Changed initial due time to 30 seconds to prevent early run
+            _syncTimer = new Timer(async _ => await TrySyncAllAsync(), null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+
             _hubConnection = new HubConnectionBuilder()
                 .WithUrl(nav.ToAbsoluteUri("/synchub"))
                 .WithAutomaticReconnect()
                 .Build();
+
             _hubConnection.On<string>("ReceiveDataUpdate", async (message) =>
             {
                 _logger.LogInformation($"SignalR message received: {message}");
@@ -42,11 +47,32 @@ namespace AgriPosPoC.Client
             });
         }
 
+        // ADDED THIS NEW METHOD
+        public async Task InitializeAsync()
+        {
+            if (_isInitialized) return; // Run only once
+
+            try
+            {
+                await StartSignalRConnectionAsync();
+                await TrySyncAllAsync(); // Run initial sync
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during initial sync.");
+                NotifyStatusChanged("Offline", Color.Error, Icons.Material.Filled.CloudOff);
+            }
+            finally
+            {
+                _isInitialized = true;
+            }
+        }
+
         private async Task StartSignalRConnectionAsync()
         {
             try
             {
-                if (_hubConnection is not null)
+                if (_hubConnection is not null && _hubConnection.State == HubConnectionState.Disconnected)
                 {
                     await _hubConnection.StartAsync();
                     NotifyStatusChanged("Online", Color.Success, Icons.Material.Filled.CloudDone);
@@ -54,6 +80,7 @@ namespace AgriPosPoC.Client
             }
             catch (Exception ex)
             {
+                _logger.LogWarning(ex, "Could not start SignalR connection.");
                 NotifyStatusChanged("Offline", Color.Error, Icons.Material.Filled.CloudOff);
             }
         }
@@ -68,6 +95,13 @@ namespace AgriPosPoC.Client
 
         public async Task TrySyncAllAsync()
         {
+            // ADDED THIS CHECK to prevent the timer from running before initialization
+            if (!_isInitialized)
+            {
+                _logger.LogWarning("Sync timer ticked before initialization. Skipping.");
+                return;
+            }
+
             if (_hubConnection?.State != HubConnectionState.Connected)
             {
                 await StartSignalRConnectionAsync();
@@ -77,6 +111,7 @@ namespace AgriPosPoC.Client
                     return;
                 }
             }
+
             NotifyStatusChanged("Syncing...", Color.Info, Icons.Material.Filled.Refresh);
             await TrySyncInvoicesAsync();
             await TrySyncProductsAsync();
@@ -85,6 +120,7 @@ namespace AgriPosPoC.Client
 
         public async Task TrySyncInvoicesAsync()
         {
+            // ... (Rest of the method is unchanged) ...
             await using var db = await _offlineDbFactory.CreateDbContextAsync();
             var unsyncedInvoices = await db.Invoices.Where(inv => !inv.IsSynced).ToListAsync();
             if (!unsyncedInvoices.Any()) return;
@@ -107,6 +143,7 @@ namespace AgriPosPoC.Client
 
         public async Task TrySyncProductsAsync()
         {
+            // ... (Rest of the method is unchanged) ...
             await using var db = await _offlineDbFactory.CreateDbContextAsync();
             try
             {
