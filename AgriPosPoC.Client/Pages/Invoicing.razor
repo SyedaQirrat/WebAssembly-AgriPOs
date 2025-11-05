@@ -55,7 +55,6 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // The line causing the deadlock is now removed
         await LoadLocalInvoices();
         SyncService.SyncStatusChanged += async (s, e) => await InvokeAsync(RefreshData);
     }
@@ -89,7 +88,6 @@
                 InvoiceDate = DateTime.UtcNow,
                 IsSynced = false
             };
-
             await db.Invoices.AddAsync(invoice);
             await db.SaveChangesAsync();
 
@@ -97,7 +95,6 @@
 
             newInvoice = new();
             await RefreshData();
-
             // Trigger a sync attempt immediately
             _ = SyncService.TrySyncInvoicesAsync();
         }

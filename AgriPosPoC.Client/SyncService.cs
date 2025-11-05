@@ -15,7 +15,7 @@ namespace AgriPosPoC.Client
         private readonly ILogger<SyncService> _logger;
         private HubConnection? _hubConnection;
         private Timer? _syncTimer;
-        private bool _isInitialized = false;
+        private bool _isInitialized = false; // <-- ADDED THIS FLAG
 
         public string SyncStatus { get; private set; } = "Offline";
         public Color SyncColor { get; private set; } = Color.Error;
@@ -31,6 +31,7 @@ namespace AgriPosPoC.Client
             _httpClientFactory = httpClientFactory;
             _logger = logger;
 
+            // UPDATED TIMER: Changed initial due time to 30 seconds to prevent early run
             _syncTimer = new Timer(async _ => await TrySyncAllAsync(), null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
 
             _hubConnection = new HubConnectionBuilder()
@@ -46,14 +47,15 @@ namespace AgriPosPoC.Client
             });
         }
 
+        // ADDED THIS NEW METHOD
         public async Task InitializeAsync()
         {
-            if (_isInitialized) return;
+            if (_isInitialized) return; // Run only once
 
             try
             {
                 await StartSignalRConnectionAsync();
-                await TrySyncAllAsync();
+                await TrySyncAllAsync(); // Run initial sync
             }
             catch (Exception ex)
             {
@@ -93,6 +95,7 @@ namespace AgriPosPoC.Client
 
         public async Task TrySyncAllAsync()
         {
+            // ADDED THIS CHECK to prevent the timer from running before initialization
             if (!_isInitialized)
             {
                 _logger.LogWarning("Sync timer ticked before initialization. Skipping.");
@@ -133,7 +136,6 @@ namespace AgriPosPoC.Client
             }
             catch (Exception ex)
             {
-                // --- FIX IS HERE ---
                 _logger.LogWarning(ex, "Failed to sync invoices.");
                 NotifyStatusChanged("Offline", Color.Error, Icons.Material.Filled.CloudOff);
             }
@@ -157,7 +159,6 @@ namespace AgriPosPoC.Client
             }
             catch (Exception ex)
             {
-                // --- FIX IS HERE ---
                 _logger.LogWarning(ex, "Failed to sync products.");
                 NotifyStatusChanged("Offline", Color.Error, Icons.Material.Filled.CloudOff);
             }

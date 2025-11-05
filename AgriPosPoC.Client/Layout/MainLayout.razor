@@ -12,7 +12,8 @@
         <MudText Typo="Typo.h5" Class="ml-3">AgriPOS</MudText>
         <MudSpacer />
         <MudTooltip Text="@SyncService.SyncStatus">
-            <MudChip T="object" Icon="@SyncService.SyncIcon" Color="@SyncService.SyncColor" Variant="Variant.Outlined">
+            <MudChip T="object" Icon="@SyncService.SyncIcon" Color="@SyncService.SyncColor" Variant="@Variant.Outlined">
+                @* <-- THIS IS THE FIX *@
                 @SyncService.SyncStatus
             </MudChip>
         </MudTooltip>
@@ -38,7 +39,7 @@
         SyncService.SyncStatusChanged += (s, e) => InvokeAsync(StateHasChanged);
     }
 
-    // ADDED THIS METHOD to safely start the SyncService
+    // This is the deadlock fix
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)

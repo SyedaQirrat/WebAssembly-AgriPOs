@@ -31,21 +31,17 @@
 
     private async Task LoadLocalProducts()
     {
-        try
-        {
-            await using var db = await DbFactory.CreateDbContextAsync();
-            localProducts = await db.Products.OrderBy(p => p.Name).ToListAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error loading local products.");
-        }
+        await using var db = await DbFactory.CreateDbContextAsync();
+        localProducts = await db.Products.OrderBy(p => p.Name).ToListAsync();
     }
 
     private async Task RefreshData()
     {
         await LoadLocalProducts();
-        await dataGrid.ReloadServerData();
+        if (dataGrid != null)
+        {
+            await dataGrid.ReloadServerData();
+        }
         StateHasChanged();
     }
 }
