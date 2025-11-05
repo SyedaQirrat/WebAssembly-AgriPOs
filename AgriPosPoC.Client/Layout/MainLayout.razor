@@ -1,16 +1,60 @@
 ﻿@inherits LayoutComponentBase
-<div class="page">
-    <div class="sidebar">
-        
-    </div>
+@inject SyncService SyncService
+@inject ISnackbar Snackbar
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
+<MudThemeProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
 
-        <article class="content px-4">
-            @Body
-        </article>
-    </main>
-</div>
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
+        <MudText Typo="Typo.h5" Class="ml-3">AgriPOS</MudText>
+        <MudSpacer />
+        <MudTooltip Text="@SyncService.SyncStatus">
+            <MudChip T="object" Icon="@SyncService.SyncIcon" Color="@SyncService.SyncColor" Variant="Variant.Outlined">
+                @SyncService.SyncStatus
+            </MudChip>
+        </MudTooltip>
+
+        <MudIconButton Icon="@Icons.Material.Filled.Refresh" Color="Color.Inherit" OnClick="TriggerSync" />
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
+        <NavMenu />
+    </MudDrawer>
+
+    <MudMainContent Class="pa-4">
+        @Body
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private bool _drawerOpen = true;
+
+    protected override void OnInitialized()
+    {
+        // Re-render this layout whenever the sync status changes
+        SyncService.SyncStatusChanged += (s, e) => InvokeAsync(StateHasChanged);
+    }
+
+    // ADDED THIS METHOD to safely start the SyncService
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await SyncService.InitializeAsync();
+        }
+    }
+
+    private void DrawerToggle()
+    {
+        _drawerOpen = !_drawerOpen;
+    }
+
+    private async Task TriggerSync()
+    {
+        Snackbar.Add("Attempting manual sync...", Severity.Info);
+        await SyncService.TrySyncAllAsync();
+    }
+}

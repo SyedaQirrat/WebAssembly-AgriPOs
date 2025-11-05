@@ -18,7 +18,7 @@
       },
       "dotnetRunMessages": true,
       "applicationUrl": "https://localhost:7095;http://localhost:5210"
-    }B
+    }
   },
   "$schema": "https://json.schemastore.org/launchsettings.json"
 }

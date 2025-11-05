@@ -20,7 +20,7 @@
 </MudDataGrid>
 
 @code {
-    private MudDataGrid<Product> dataGrid;
+    private MudDataGrid<Product>? dataGrid;
     private List<Product> localProducts = new();
 
     protected override async Task OnInitializedAsync()
