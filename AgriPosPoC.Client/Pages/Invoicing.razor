@@ -46,6 +46,7 @@
     </PagerContent>
 </MudDataGrid>
 
+
 @code {
     private MudForm form;
     private MudDataGrid<Invoice> dataGrid;
@@ -54,11 +55,8 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await using var db = await DbFactory.CreateDbContextAsync();
-        //await db.Database.EnsureCreatedAsync(); // Creates the .db file
+        // The line causing the deadlock is now removed
         await LoadLocalInvoices();
-
-        // Refresh the grid if the sync service reports a change
         SyncService.SyncStatusChanged += async (s, e) => await InvokeAsync(RefreshData);
     }
 
@@ -71,7 +69,10 @@
     private async Task RefreshData()
     {
         await LoadLocalInvoices();
-        await dataGrid.ReloadServerData(); // Refreshes the MudDataGrid
+        if (dataGrid != null)
+        {
+            await dataGrid.ReloadServerData();
+        }
         StateHasChanged();
     }
 
@@ -96,7 +97,6 @@
 
             newInvoice = new();
             await RefreshData();
-            StateHasChanged();
 
             // Trigger a sync attempt immediately
             _ = SyncService.TrySyncInvoicesAsync();
