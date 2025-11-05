@@ -33,10 +33,10 @@
     private bool _drawerOpen = true;
 
     protected override async Task OnInitializedAsync()
-    {
-        // This will work and will not freeze your app
-        await SyncService.TrySyncAllAsync();
-    }
+{
+    // This will work and will not freeze your app
+    await SyncService.TrySyncAllAsync();
+}
 
     private void DrawerToggle()
     {
