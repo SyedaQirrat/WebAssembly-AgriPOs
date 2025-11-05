@@ -11,7 +11,7 @@ namespace AgriPosPoC.Client
     public class SyncService : IAsyncDisposable
     {
         private readonly IDbContextFactory<OfflineDbContext> _offlineDbFactory;
-        private readonly IHttpClientFactory _httpClientFactory; // <-- CHANGED
+        private readonly IHttpClientFactory _httpClientFactory; 
         private readonly ILogger<SyncService> _logger;
         private HubConnection? _hubConnection;
         private Timer? _syncTimer;
@@ -22,12 +22,12 @@ namespace AgriPosPoC.Client
         public event EventHandler? SyncStatusChanged;
 
         public SyncService(IDbContextFactory<OfflineDbContext> offlineDbFactory,
-                           IHttpClientFactory httpClientFactory, // <-- CHANGED
+                           IHttpClientFactory httpClientFactory, 
                            ILogger<SyncService> logger,
                            NavigationManager nav)
         {
             _offlineDbFactory = offlineDbFactory;
-            _httpClientFactory = httpClientFactory; // <-- CHANGED
+            _httpClientFactory = httpClientFactory; 
             _logger = logger;
             _syncTimer = new Timer(async _ => await TrySyncAllAsync(), null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30));
             _hubConnection = new HubConnectionBuilder()

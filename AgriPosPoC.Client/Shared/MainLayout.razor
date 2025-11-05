@@ -32,10 +32,10 @@
 @code {
     private bool _drawerOpen = true;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        // Re-render this layout whenever the sync status changes
-        SyncService.SyncStatusChanged += (s, e) => StateHasChanged();
+        // This will work and will not freeze your app
+        await SyncService.TrySyncAllAsync();
     }
 
     private void DrawerToggle()
